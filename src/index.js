@@ -1,10 +1,38 @@
 const { ApolloServer, gql } = require("apollo-server");
-const { MongoClient } = require("mongodb");
+const { MongoClient, ObjectId } = require("mongodb");
+const bcrypt = require('bcryptjs');
+const jwt = require("jsonwebtoken")
 
 const dotenv = require("dotenv");
 dotenv.config();
 
-const { DB_URI, DB_COUNTDOWN, COL_COURSEINFO, DB_GAMEDAY, COL_GAMEINFO } = process.env;
+const { 
+  DB_URI,
+  DB_COUNTDOWN,
+  COL_COURSEINFO,
+  DB_GAMEDAY,
+  COL_GAMEINFO,
+  COL_GAMEUSERS,
+  DB_LOGUELINK,
+  COL_LINKINFO,
+  COL_TUTORIALINFO,
+  JWT_SECRET 
+} = process.env;
+
+const getToken = (user) => jwt.sign({ id: user._id }, JWT_SECRET, { expiresIn: '1h' });
+
+const getUserFromToken = async (token, db) => {
+  if (!token) { return null }
+
+  const tokenData = jwt.verify(token, JWT_SECRET);
+  //console.log(tokenData);
+  if (!tokenData?.id) {
+    return null;
+  }
+  const found = await db.find({ _id: ObjectId(tokenData.id) });
+
+  return found
+}
 
 // A schema is a collection of type definitions (hence "typeDefs")
 // that together define the "shape" of queries that are executed against
@@ -26,7 +54,49 @@ const typeDefs = gql`
     game: String
     solution: String
     title: String
+  }
+  
+  type Link {
+    id: String
+    uri: String
+    title: String
   } 
+    
+   type Tutorial {
+      id: String
+      title: String
+   } 
+
+    type Mutation {
+      signIn(input: SignInInput!): AuthUser!
+
+      createGame(newGame: GameInput!): Boolean!
+      updateGame(id: Int!, updatedGame: GameInput!): Boolean!
+      deleteGame(id: Int!): Boolean!
+    }
+
+    input SignInInput {
+      id: String!
+      pass: String!
+    }
+
+    input GameInput {
+      id: Int
+      note: String
+      game: String
+      solution: String
+      title: String
+    }
+
+    type AuthUser {
+      user: User!
+      token: String!
+    }
+
+    type User {
+      id: String!
+      name: String!
+    }
 
   # The "Query" type is special: it lists all of the available queries that
   # clients can execute, along with the return type for each. In this
@@ -41,6 +111,9 @@ const typeDefs = gql`
     courseByType(creditTypeCode: [String]): [Course]
 
     games: [Game]
+    
+    links: [Link]
+    tutorials: [Tutorial]
   }
 `;
 
@@ -49,31 +122,31 @@ const typeDefs = gql`
 const resolvers = {
   Query: {
     courses: async (root, data, context) => {
-      return await context.col.find({}).toArray();
+      return await context.countdownCol.find({}).toArray();
     },
     coursesBy: async (root, data, context) => {
       console.log(data);
       if ((data.courseCode == '' || data.courseCode == undefined ) && (data.courseTitle == '' || data.courseTitle == undefined ) && (data.divisionCodes.length == 0 || data.divisionCodes == undefined )) {
         return await context.countdownCol.find({}).toArray();
-        
+
       }else if ((data.courseCode == '' || data.courseCode == undefined ) && (data.courseTitle == '' || data.courseTitle == undefined )) {
         return await context.countdownCol.find({divisionCode: {$in: data.divisionCodes}}).toArray()
-        
+
       }else if ((data.divisionCodes.length == 0 || data.divisionCodes == undefined ) && (data.courseTitle == '' || data.courseTitle == undefined )) {
         return await context.countdownCol.find({courseCode: {"$regex":data.courseCode}}).toArray()
-        
+
       }else if ((data.divisionCodes.length == 0 || data.divisionCodes == undefined ) && (data.courseCode == '' || data.courseCode == undefined )) {
         return await context.countdownCol.find({courseTitle: {"$regex": data.courseTitle}}).toArray()
-        
+
       }else if ((data.divisionCodes.length == 0 || data.divisionCodes == undefined )) {
         return await context.countdownCol.find({courseCode: {"$regex": data.courseCode}, courseTitle: {"$regex": data.courseTitle}}).toArray()
-        
+
       }else if ((data.courseCode == '' || data.courseCode == undefined )) {
         return await context.countdownCol.find({divisionCode: {$in: data.divisionCodes}, courseTitle: {"$regex": data.courseTitle}}).toArray()
-        
+
       }else if ((data.courseTitle == '' || data.courseTitle == undefined )) {
         return await context.countdownCol.find({divisionCode: {$in: data.divisionCodes}, courseCode: {"$regex": data.courseCode}}).toArray()
-        
+
       }else{
         // const CC_arr = await context.col.find({divisionCode: {$in: data.divisionCodes}}).toArray()
         // const DC_arr = await context.col.find({courseCode: {"$regex":data.courseCode}}).toArray()
@@ -125,6 +198,63 @@ const resolvers = {
     games: (root, data, context) => {
       return context.gameInfoCol.find({}).toArray();
     },
+    links: (root, data, context) => {
+      return context.linkInfoCol.find({}).toArray();
+    },
+    tutorials: (root, data, context) => {
+      return context.tutorialInfoCol.find({}).toArray();
+    },
+  },
+
+  Mutation: {
+    signIn: async(_,{input}, context) => {
+      const user = await context.gameUsersCol.findOne({ id: input.id });
+      
+      const isPasswordCorrect = user && await bcrypt.compare(input.pass, user.pass);
+
+      if (!user || !isPasswordCorrect) {
+        throw new Error('Invalid credentials!');
+      }
+
+      return {
+        user,
+        token: getToken(user),
+      }
+    },
+    createGame: async(_, { newGame }, { gameInfoCol, user }) => {
+     if (!user) { throw new Error('Authentication Error. Please sign in'); }
+     const id = newGame.id;
+     const note = newGame.note;
+     const game = newGame.game;
+     const solution = newGame.solution;
+     const title = newGame.title;
+      const newGameTemplate = {      
+        id,
+        note,
+        game,
+        solution,
+        title
+      }
+      const result = await gameInfoCol.insertOne(newGameTemplate);
+      console.log(result.acknowledged);
+      return result.acknowledged// result.ops[0];
+    },
+
+    // updateGame: async(_, { id, updatedGame  }, { gameInfoCol, user }) => {
+    //   if (!user) { throw new Error('Authentication Error. Please sign in'); }
+
+    //   const result = await gameInfoCol.updateOne({id: id}, { updatedGame})
+    //   console.log(acknowledged);
+    //   return result.acknowledged;
+    // },
+
+    deleteGame: async(_, { id }, { gameInfoCol, user }) => {
+      if (!user) { throw new Error('Authentication Error. Please sign in'); }
+      
+      const result = await gameInfoCol.deleteOne({ id: id });
+
+      return result.acknowledged;
+    },
   },
 };
 
@@ -134,21 +264,48 @@ const start = async () => {
     useUnifiedTopology: true,
   });
   await client.connect();
-  const db_countdown = client.db(DB_COUNTDOWN);
-  const countdownCol = db_countdown.collection(COL_COURSEINFO)
-
-  const db_gameday = client.db(DB_GAMEDAY);
-  const gameInfoCol = db_gameday.collection(COL_GAMEINFO)
   
-  // console.log(db);
+  const countdownCol = client.db(DB_COUNTDOWN).collection(COL_COURSEINFO);
 
-  const context = {
-    countdownCol, gameInfoCol
-  };
+  const gameInfoCol = client.db(DB_GAMEDAY).collection(COL_GAMEINFO);
+  const gameUsersCol = client.db(DB_GAMEDAY).collection(COL_GAMEUSERS);
+
+  const linkInfoCol = client.db(DB_LOGUELINK).collection(COL_LINKINFO);
+  const tutorialInfoCol = client.db(DB_LOGUELINK).collection(COL_TUTORIALINFO);
+
+  // const temp = await gameUsersCol.find({}).toArray();
+  // console.log(temp);
+
+  
 
   // The ApolloServer constructor requires two parameters: your schema
   // definition and your set of resolvers.
-  const server = new ApolloServer({ typeDefs, resolvers, context });
+  const server = new ApolloServer({
+    typeDefs,
+    resolvers,
+    dataSources: () => {
+      return {
+
+      };
+    },
+    context: async ({ req }) => {
+
+      const user = await getUserFromToken(req.headers.authorization, client.db(DB_GAMEDAY).collection(COL_GAMEUSERS) ) || '';
+      
+      return{
+        user,
+
+        countdownCol,
+
+        gameInfoCol,
+        gameUsersCol,
+
+        linkInfoCol,
+        tutorialInfoCol,
+      }
+    }
+    
+  });
 
   // The `listen` method launches a web server.
   server.listen({ port: process.env.PORT || 4000 }).then(({ url }) => {
