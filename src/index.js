@@ -209,6 +209,8 @@ const resolvers = {
   Mutation: {
     signIn: async(_,{input}, context) => {
       const user = await context.gameUsersCol.findOne({ id: input.id });
+
+      console.log(input);
       
       const isPasswordCorrect = user && await bcrypt.compare(input.pass, user.pass);
 
@@ -291,7 +293,7 @@ const start = async () => {
     context: async ({ req }) => {
 
       const user = await getUserFromToken(req.headers.authorization, client.db(DB_GAMEDAY).collection(COL_GAMEUSERS) ) || '';
-      
+     
       return{
         user,
 
