@@ -70,7 +70,7 @@ const typeDefs = gql`
     type Mutation {
       signIn(input: SignInInput!): AuthUser!
 
-      createGame(newGame: GameInput!): Boolean!
+      createGame(id: Int, note: String, game: String, solution: String, title: String): Boolean!
       updateGame(id: Int!, updatedGame: GameInput!): Boolean!
       deleteGame(id: Int!): Boolean!
     }
@@ -111,6 +111,7 @@ const typeDefs = gql`
     courseByType(creditTypeCode: [String]): [Course]
 
     games: [Game]
+    gameSignedIn: Boolean
     
     links: [Link]
     tutorials: [Tutorial]
@@ -198,6 +199,10 @@ const resolvers = {
     games: (root, data, context) => {
       return context.gameInfoCol.find({}).toArray();
     },
+    gameSignedIn: (_, __, { user }) => {
+      if (user) return true;
+      return false
+    },
     links: (root, data, context) => {
       return context.linkInfoCol.find({}).toArray();
     },
@@ -223,13 +228,13 @@ const resolvers = {
         token: getToken(user),
       }
     },
-    createGame: async(_, { newGame }, { gameInfoCol, user }) => {
+    createGame: async(_, data, { gameInfoCol, user }) => {
      if (!user) { throw new Error('Authentication Error. Please sign in'); }
-     const id = newGame.id;
-     const note = newGame.note;
-     const game = newGame.game;
-     const solution = newGame.solution;
-     const title = newGame.title;
+     const id = data.id;
+     const note = data.note;
+     const game = data.game;
+     const solution = data.solution;
+     const title = data.title;
       const newGameTemplate = {      
         id,
         note,
