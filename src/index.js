@@ -48,7 +48,7 @@ const typeDefs = gql`
   }
 
   type Game {
-    id: Int
+    _id: ID
     note: String
     image: String
     game: String
@@ -70,9 +70,9 @@ const typeDefs = gql`
     type Mutation {
       signIn(input: SignInInput!): AuthUser!
 
-      createGame(id: Int, note: String, game: String, solution: String, title: String): Boolean!
+      createGame(note: String, game: String, solution: String, title: String): Boolean!
       updateGame(id: Int!, updatedGame: GameInput!): Boolean!
-      deleteGame(id: Int!): Boolean!
+      deleteGame(id: ID): Boolean!
     }
 
     input SignInInput {
@@ -81,7 +81,6 @@ const typeDefs = gql`
     }
 
     input GameInput {
-      id: Int
       note: String
       game: String
       solution: String
@@ -196,7 +195,7 @@ const resolvers = {
     courseByType: (root, data, context) => {
       return context.countdownCol.find({creditTypeCode: data.creditTypeCode}).toArray();
     },
-    games: (root, data, context) => {
+    games: async (root, data, context) => {
       return context.gameInfoCol.find({}).toArray();
     },
     gameSignedIn: (_, __, { user }) => {
@@ -230,13 +229,11 @@ const resolvers = {
     },
     createGame: async(_, data, { gameInfoCol, user }) => {
      if (!user) { throw new Error('Authentication Error. Please sign in'); }
-     const id = data.id;
      const note = data.note;
      const game = data.game;
      const solution = data.solution;
      const title = data.title;
       const newGameTemplate = {      
-        id,
         note,
         game,
         solution,
@@ -258,7 +255,7 @@ const resolvers = {
     deleteGame: async(_, { id }, { gameInfoCol, user }) => {
       if (!user) { throw new Error('Authentication Error. Please sign in'); }
       
-      const result = await gameInfoCol.deleteOne({ id: id });
+      const result = await gameInfoCol.deleteOne({ _id: ObjectId(id) });
 
       return result.acknowledged;
     },
