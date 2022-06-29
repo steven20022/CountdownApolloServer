@@ -255,6 +255,7 @@ const resolvers = {
     deleteGame: async(_, { id }, { gameInfoCol, user }) => {
       if (!user) { throw new Error('Authentication Error. Please sign in'); }
       
+      console.log(id);
       const result = await gameInfoCol.deleteOne({ _id: ObjectId(id) });
 
       console.log(result);
