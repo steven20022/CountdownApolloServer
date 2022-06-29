@@ -257,6 +257,8 @@ const resolvers = {
       
       const result = await gameInfoCol.deleteOne({ _id: ObjectId(id) });
 
+      console.log(result);
+
       return result.acknowledged;
     },
   },
@@ -296,6 +298,7 @@ const start = async () => {
 
       const user = await getUserFromToken(req.headers.authorization, client.db(DB_GAMEDAY).collection(COL_GAMEUSERS) ) || '';
      
+      
       return{
         user,
 
