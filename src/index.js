@@ -71,7 +71,7 @@ const typeDefs = gql`
 
     type Mutation {
       signInGame(input: SignInInput!): AuthUser!
-      signInLink(input: SignInInput!): AuthUser!
+      signInLink(id: String, pass: String): AuthUser!
 
       createGame(note: String, game: String, solution: String, title: String): Boolean!
       updateGame(id: Int!, updatedGame: GameInput!): Boolean!
@@ -276,7 +276,7 @@ const resolvers = {
     },
 
     
-    signInLink: async(_,{input}, {linkUsersCol}) => {
+    signInLink: async(_,input, {linkUsersCol}) => {
       const user = await linkUsersCol.findOne({ id: input.id });
 
       console.log(input);
