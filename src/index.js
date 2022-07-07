@@ -10,6 +10,7 @@ const {
   DB_URI,
   DB_COUNTDOWN,
   COL_COURSEINFO,
+  COL_MAJORINFO,
   DB_GAMEDAY,
   COL_GAMEINFO,
   COL_GAMEUSERS,
@@ -46,6 +47,13 @@ const typeDefs = gql`
     courseTitle: String
     credits: Float
     creditTypeCode: String
+  }
+
+  type Major {
+    title: String
+    numElectives: Int
+    courses: [Course]
+    electives: [Course]
   }
 
   type Game {
@@ -120,6 +128,8 @@ const typeDefs = gql`
     courseByTitle(courseTitle: [String]): [Course]
     courseByCredits(credits: [Float]): [Course]
     courseByType(creditTypeCode: [String]): [Course]
+    majors: [Major]
+    majorsBy(title: String): [Major]
 
     games: [Game]
     gameSignedIn: Boolean
@@ -207,12 +217,28 @@ const resolvers = {
     courseByType: (root, data, context) => {
       return context.countdownCol.find({creditTypeCode: data.creditTypeCode}).toArray();
     },
+    majors: async (root, data, context) => {
+      const dbData = await context.majorCol.find({}).toArray();
+      return dbData.map( async major => {
+        const courses = await context.countdownCol.find({courseCode: {$in: major.courseCodes}}).toArray()
+        const electives = await context.countdownCol.find({courseCode: {$in: major.electives}}).toArray()
+        return {
+          title: major.title,
+          numElectives: major.numElectives,
+          courses: courses,
+          electives: electives 
+        }
+      });
+    },
+    majorsBy: (root, data, context) => {
+      return context.majorCol.find({title: data.title}).toArray();
+    },
     games: async (root, data, context) => {
       return context.gameInfoCol.find({}).toArray();
     },
     gameSignedIn: (_, __, { user }) => {
       if (user) return true;
-      return false
+      return false 
     },
     links: (root, data, context) => {
       return context.linkInfoCol.find({}).toArray();
@@ -354,6 +380,7 @@ const start = async () => {
   await client.connect();
   
   const countdownCol = client.db(DB_COUNTDOWN).collection(COL_COURSEINFO);
+  const majorCol = client.db(DB_COUNTDOWN).collection(COL_MAJORINFO);
 
   const gameInfoCol = client.db(DB_GAMEDAY).collection(COL_GAMEINFO);
   const gameUsersCol = client.db(DB_GAMEDAY).collection(COL_GAMEUSERS);
@@ -386,6 +413,7 @@ const start = async () => {
         user,
 
         countdownCol,
+        majorCol,
 
         gameInfoCol,
         gameUsersCol,
