@@ -11,6 +11,7 @@ const {
   DB_COUNTDOWN,
   COL_COURSEINFO,
   COL_MAJORINFO,
+  COL_DIVISIONINFO,
   DB_GAMEDAY,
   COL_GAMEINFO,
   COL_GAMEUSERS,
@@ -54,6 +55,11 @@ const typeDefs = gql`
     numElectives: Int
     courses: [Course]
     electives: [Course]
+  }
+
+  type Division {
+    code: String
+    name: String
   }
 
   type Game {
@@ -130,6 +136,7 @@ const typeDefs = gql`
     courseByType(creditTypeCode: [String]): [Course]
     majors: [Major]
     majorsBy(title: String): [Major]
+    divisions: [Division]
 
     games: [Game]
     gameSignedIn: Boolean
@@ -205,7 +212,7 @@ const resolvers = {
       return await context.countdownCol.find({divisionCode: {$in: divisionCodes}}).toArray();
     },
     courseByCode: async (root, data, context) =>  {
-      return await context.countdownCol.find({courseCode: {"$regex":data.courseCode}}).toArray()
+      return await context.countdownCol.find({courseCode: {$in: data.courseCode}}).toArray()
     },
     courseByTitle: (root, data, context) => {
       console.log(data);
@@ -232,6 +239,9 @@ const resolvers = {
     },
     majorsBy: (root, data, context) => {
       return context.majorCol.find({title: data.title}).toArray();
+    },
+    divisions: (root, data, context) => {
+      return context.divisionCol.find({}).toArray();
     },
     games: async (root, data, context) => {
       return context.gameInfoCol.find({}).toArray();
@@ -381,6 +391,7 @@ const start = async () => {
   
   const countdownCol = client.db(DB_COUNTDOWN).collection(COL_COURSEINFO);
   const majorCol = client.db(DB_COUNTDOWN).collection(COL_MAJORINFO);
+  const divisionCol = client.db(DB_COUNTDOWN).collection(COL_DIVISIONINFO);
 
   const gameInfoCol = client.db(DB_GAMEDAY).collection(COL_GAMEINFO);
   const gameUsersCol = client.db(DB_GAMEDAY).collection(COL_GAMEUSERS);
@@ -414,6 +425,7 @@ const start = async () => {
 
         countdownCol,
         majorCol,
+        divisionCol,
 
         gameInfoCol,
         gameUsersCol,
